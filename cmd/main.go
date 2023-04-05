@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 
 	"github.com/SherClockHolmes/webpush-go"
@@ -52,10 +53,11 @@ func (handler *NotificationHandler) Subscribe(request []byte) {
 
 }
 
-func (handler *NotificationHandler) Notify() {
+func (handler *NotificationHandler) Notify(message string) {
+	log.Printf("Pushing %s to %v subscribers... ", message, len(handler.subscriptions))
 	for _, subscription := range handler.subscriptions {
-		resp, err := webpush.SendNotification([]byte("Test"), subscription, &webpush.Options{
-			Subscriber:      "mailto:support@brilliantmonkey.net",
+		resp, err := webpush.SendNotification([]byte(message), subscription, &webpush.Options{
+			Subscriber:      fmt.Sprintf("mailto:%s", handler.pushConfig.Subscriber),
 			VAPIDPublicKey:  handler.pushConfig.VAPID.PublicKey,
 			VAPIDPrivateKey: handler.pushConfig.VAPID.PrivateKey,
 			TTL:             30,
@@ -83,7 +85,7 @@ func (handler *NotificationHandler) Start() error {
 		}
 
 		// Notify with result
-		log.Println("Pushing notification ", string(result))
+		handler.Notify(string(result))
 		return nil
 	}
 
