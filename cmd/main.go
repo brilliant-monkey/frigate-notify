@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/brilliant-monkey/frigate-notify/config"
@@ -23,6 +24,7 @@ type NotificationHandler struct {
 	client        *kafka.KafkaClient
 	notifier      *notify.Notifier
 	subscriptions []*webpush.Subscription
+	lock          sync.Mutex
 }
 
 func NewNotificationHandler(config config.AppConfig) *NotificationHandler {
@@ -44,13 +46,26 @@ func NewNotificationHandler(config config.AppConfig) *NotificationHandler {
 		client:        client,
 		notifier:      notifier,
 		subscriptions: subscriptions,
+		lock:          sync.Mutex{},
 	}
 }
 
 func (handler *NotificationHandler) Subscribe(request []byte) {
-	s := &webpush.Subscription{}
-	json.Unmarshal(request, s)
+	var s webpush.Subscription
+	err := json.Unmarshal(request, &s)
+	if err != nil {
+		log.Println("Failed to subscribe", err)
+		return
+	}
 
+	if &s == nil {
+		log.Println("Failed to subscribe", err)
+		return
+	}
+
+	defer handler.lock.Unlock()
+	handler.lock.Lock()
+	handler.subscriptions = append(handler.subscriptions, s)
 }
 
 func (handler *NotificationHandler) Notify(message string) {
