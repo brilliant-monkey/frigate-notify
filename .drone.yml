@@ -1,0 +1,90 @@
+kind: pipeline
+type: docker
+name: default
+
+steps:
+- name: "[Main] Deploy"
+  image: quay.io/honestbee/drone-kubernetes
+  settings:
+    namespace: default
+    deployment: ${DRONE_REPO_NAME}
+    container: app
+    repo: ghcr.io/${DRONE_REPO}
+    tag: ${DRONE_COMMIT:0:7}
+    kubernetes_server:
+      from_secret: KUBE_SERVER
+    kubernetes_token:
+      from_secret: DRONE_TOKEN
+    kubernetes_cert:
+      from_secret: KUBE_CA
+  when:
+    event:
+      - push
+    branch:
+      - main
+- name: "[Tag] Deploy"
+  image: quay.io/honestbee/drone-kubernetes
+  settings:
+    namespace: default
+    deployment: ${DRONE_REPO_NAME}
+    container: app
+    repo: ghcr.io/${DRONE_REPO}
+    tag: ${DRONE_TAG}
+    kubernetes_server:
+      from_secret: KUBE_SERVER
+    kubernetes_token:
+      from_secret: DRONE_TOKEN
+    kubernetes_cert:
+      from_secret: KUBE_CA
+  when:
+    event:
+      - tag
+- name: '[Push] Slack'
+  image: plugins/slack
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_URL
+    channel: ci
+    link_names: true
+    template: >
+      {{#success build.status}}
+        *Build Completed Successfully*
+
+        `{{repo.name}}` — <{{build.link}}|Build #{{build.number}} on {{build.branch}}>
+      {{else}}
+        *Build Failed*
+        
+        `{{repo.name}}` — <{{build.link}}|Build #{{build.number}} on {{build.branch}}>
+      {{/success}}
+  when:
+    event:
+      - push
+    branch: 
+      - main
+    status:
+      - success
+      - failure
+
+- name: '[TAG] Slack'
+  image: plugins/slack
+  settings:
+    webhook:
+      from_secret: SLACK_WEBHOOK_URL
+    channel: ci
+    link_names: true
+    template: >
+      {{#success build.status}}
+        *Deployment to Production Completed Successfully*
+
+        `{{repo.name}}` version {{tag}} — <{{build.link}}|Build #{{build.number}}>
+      {{else}}
+        *Deployment to Production Failed*
+        
+        `{{repo.name}}` version {{tag}}— <{{build.link}}|Build #{{build.number}}>
+      {{/success}}
+  when:
+    event:
+      - tag
+    status:
+      - success
+      - failure
